@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import puppeteer from 'puppeteer';
 import { Redis } from '@upstash/redis';
 
@@ -15,7 +16,7 @@ export async function refreshCookies() {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-blink-features=AutomationControlled',
-      '--disable-dev-shm-usage',  // important for Railway
+      '--disable-dev-shm-usage',
       '--disable-gpu',
     ]
   });
@@ -27,35 +28,25 @@ export async function refreshCookies() {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
 
-    // Hide automation flags from Cloudflare
     await page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => false });
       window.chrome = { runtime: {} };
     });
 
-    // Set up response watchers BEFORE navigating
+    // Set up session watcher BEFORE navigating
     const sessionDone = page.waitForResponse(
       res => res.url().includes('/api/auth/session') && res.status() === 204,
-      { timeout: 30000 }
-    );
-    const viewDone = page.waitForResponse(
-      res => res.url().includes('/api/anime/details/view') && res.status() === 200,
-      { timeout: 30000 }
-    );
-    const healthDone = page.waitForResponse(
-      res => res.url().includes('/api/cdn/health') && res.status() === 200,
-      { timeout: 30000 }
+      { timeout: 60000 }
     );
 
-    // Navigate to an actual show page so all 3 requests fire
     await page.goto(
       'https://anime.nexus/series/998f3ad3-1324-4456-a49d-0ca24f29aad3/sword-art-online',
-      { waitUntil: 'networkidle2', timeout: 30000 }
+      { waitUntil: 'networkidle2', timeout: 60000 }
     );
 
-    // Wait for all 3 signals — session is fully established after this
-    await Promise.all([sessionDone, viewDone, healthDone]);
-    console.log('✅ All session signals received');
+    // Wait for session handshake
+    await sessionDone;
+    console.log('✅ Session handshake complete');
 
     const cookies = await page.cookies();
     const relevant = cookies.filter(c =>
@@ -64,7 +55,6 @@ export async function refreshCookies() {
 
     if (relevant.length === 0) throw new Error('No cookies extracted — CF challenge may have failed');
 
-    // Store in Redis with 20hr TTL
     await redis.set('anime_nexus_cookies', JSON.stringify(relevant), { ex: 72000 });
     console.log(`✅ Stored ${relevant.length} cookies: ${relevant.map(c => c.name).join(', ')}`);
 

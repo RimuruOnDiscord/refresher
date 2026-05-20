@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cron from 'node-cron';
 import { refreshCookies } from './refresh.js';
@@ -5,14 +6,15 @@ import { refreshCookies } from './refresh.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Health check endpoint — Railway needs this
+app.use(express.json());
+
+// Health check — Railway needs this to confirm app is alive
 app.get('/', (req, res) => {
   res.json({ status: 'ok', service: 'anime-cookie-refresh' });
 });
 
-// Manual trigger endpoint — useful for emergency refresh from Vercel
+// Manual trigger endpoint
 app.post('/refresh', async (req, res) => {
-  // Simple auth so random people can't spam it
   if (req.headers['x-refresh-secret'] !== process.env.REFRESH_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -26,6 +28,7 @@ app.post('/refresh', async (req, res) => {
 
 // Run every 20 hours
 cron.schedule('0 */20 * * *', async () => {
+  console.log('⏰ Cron triggered cookie refresh');
   try {
     await refreshCookies();
   } catch (err) {
@@ -35,7 +38,7 @@ cron.schedule('0 */20 * * *', async () => {
 
 app.listen(PORT, async () => {
   console.log(`🚀 Cookie refresh service running on port ${PORT}`);
-  // Run once immediately on startup
+  // Run once on startup
   try {
     await refreshCookies();
   } catch (err) {
