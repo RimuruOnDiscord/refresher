@@ -33,22 +33,35 @@ export async function refreshCookies() {
       window.chrome = { runtime: {} };
     });
 
-    // Set up session watcher BEFORE navigating
+    // Set up ALL watchers BEFORE navigating
     const sessionDone = page.waitForResponse(
       res => res.url().includes('/api/auth/session') && res.status() === 204,
       { timeout: 60000 }
     );
+
+    const viewDone = page.waitForResponse(
+      res => res.url().includes('/api/anime/details/view') && res.status() === 200,
+      { timeout: 60000 }
+    ).catch(() => console.log('⚠️ view ping did not fire, continuing anyway'));
 
     await page.goto(
       'https://anime.nexus/series/998f3ad3-1324-4456-a49d-0ca24f29aad3/sword-art-online',
       { waitUntil: 'networkidle2', timeout: 60000 }
     );
 
-    // Wait for session handshake
+    // Wait for session first, then view
     await sessionDone;
     console.log('✅ Session handshake complete');
 
+    await viewDone;
+    console.log('✅ View ping complete');
+
+    // Small buffer to let Laravel set its cookies
+    await new Promise(r => setTimeout(r, 2000));
+
     const cookies = await page.cookies();
+    console.log(`🍪 All cookies found: ${cookies.map(c => c.name).join(', ')}`);
+
     const relevant = cookies.filter(c =>
       ['anime_nexus_session', 'application_viewable', 'cf_clearance'].includes(c.name)
     );
