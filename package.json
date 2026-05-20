@@ -1,0 +1,14 @@
+{
+  "name": "anime-cookie-refresh",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.28.0",
+    "puppeteer": "^21.0.0",
+    "node-cron": "^3.0.3",
+    "express": "^4.18.2"
+  }
+}
